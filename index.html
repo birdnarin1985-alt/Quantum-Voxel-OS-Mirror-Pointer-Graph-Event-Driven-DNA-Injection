@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>หจก. เชียงใหม่ 63 การช่าง - WALL-E Event-Driven Pet & 3D Sand Map (120 FPS)</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #000000;
+            --glass-bg: rgba(13, 17, 23, 0.92);
+            --border-glow: rgba(0, 255, 102, 0.6);
+            --accent-green: #00ff66;
+            --accent-blue: #0a84ff;
+            --accent-gold: #d29922;
+            --text-main: #f0f6fc;
+            --text-sub: #8b949e;
+            --font-ios: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+        }
+        body, html { width: 100%; height: 100%; margin: 0; padding: 0; background: var(--bg-color); font-family: var(--font-ios); overflow: hidden; }
+        #cesiumContainer { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+        
+        /* HUD Panel */
+        .hud-panel {
+            position: absolute;
+            top: 16px; left: 16px; right: 16px; max-width: 460px;
+            background: var(--glass-bg); backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border: 1px solid var(--border-glow); border-radius: 24px; padding: 20px;
+            z-index: 1000; box-shadow: 0 20px 60px rgba(0, 255, 102, 0.35); color: var(--text-main); box-sizing: border-box;
+        }
+        h2 { margin: 0 0 2px 0; font-size: 17px; color: #fff; text-align: center; font-weight: 700; text-shadow: 0 0 12px rgba(0,255,102,0.6); }
+        .os-subtitle { font-size: 11px; color: var(--accent-green); text-align: center; margin-bottom: 14px; font-weight: 600; }
+        
+        .ios-btn { width: 100%; background: var(--accent-green); color: #000; border: none; padding: 13px; font-size: 14px; font-weight: 700; border-radius: 12px; cursor: pointer; margin-top: 6px; box-shadow: 0 4px 18px rgba(0,255,102,0.3); display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .ios-btn:active { transform: scale(0.96); opacity: 0.85; }
+        .ios-btn.gold { background: var(--accent-gold); color: #000; }
+
+        .event-screen { background: rgba(1, 4, 9, 0.95); border: 1px dashed var(--accent-green); padding: 14px; border-radius: 12px; font-size: 11px; line-height: 1.5; margin-top: 12px; }
+        .mantra-footer { text-align: center; margin-top: 12px; font-size: 11px; color: var(--accent-gold); font-weight: bold; background: rgba(210, 153, 34, 0.1); padding: 7px; border-radius: 8px; border: 1px dashed var(--accent-gold); }
+
+        /* WALL-E Event-Driven Breathing Pet Widget (มุมจอ ลมหายใจยุกยิก) */
+        #walle-pet-container {
+            position: absolute; bottom: 24px; right: 24px;
+            width: 90px; height: 90px; z-index: 2000;
+            background: rgba(22, 27, 34, 0.85); border: 2px solid var(--accent-gold);
+            border-radius: 50%; box-shadow: 0 10px 30px rgba(210, 153, 34, 0.4);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            cursor: pointer; transition: transform 0.2s;
+            animation: walleBreathing 3s ease-in-out infinite;
+        }
+        #walle-pet-container:hover { transform: scale(1.1); }
+        
+        .walle-avatar { font-size: 32px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); }
+        .walle-speech {
+            position: absolute; bottom: 100px; right: 0;
+            background: rgba(0,0,0,0.9); color: var(--accent-green); border: 1px solid var(--accent-green);
+            padding: 4px 8px; border-radius: 8px; font-size: 10px; font-weight: bold;
+            white-space: nowrap; pointer-events: none; opacity: 0.9;
+            box-shadow: 0 4px 12px rgba(0,255,102,0.3);
+        }
+
+        @keyframes walleBreathing {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-6px) rotate(2deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="cesiumContainer"></div>
+
+    <!-- WALL-E Event-Driven Pet Widget (มุมจอ ลมหายใจยุกยิก) -->
+    <div id="walle-pet-container" onclick="triggerWalleEvent()">
+        <div class="walle-speech" id="walle-speech-bubble">🤖 พี๊พ... ลุยงานกันครับ!</div>
+        <div class="walle-avatar" id="walle-emoji">🤖</div>
+    </div>
+
+    <div class="hud-panel">
+        <h2>หจก. เชียงใหม่ 63 การช่าง</h2>
+        <div class="os-subtitle">WALL-E PET • SINE WAVE BREATHING & 3D SAND MAP</div>
+
+        <button class="ios-btn" id="breath-toggle-btn">🌬️ เปิด/ปิด ลมหายใจคลื่นทราย (Sine Wave)</button>
+        <button class="ios-btn gold" id="blessing-btn">✨ สวดคาถาเงินล้าน เสริมพลังมหาลาภ</button>
+
+        <div id="breath-log-box" class="event-screen">
+            <em>[หุ่นยนต์ WALL-E พร้อมวิ่งป่วนและส่ง Event ขับเคลื่อนระบบลื่นหัวแตก 120 FPS...]</em>
+        </div>
+
+        <div class="mantra-footer">
+            "คาถาเงินล้าน: มหาลาโภ ภวันตุ เม... ลมหายใจเข้าออก ไหลลื่นไร้รอยต่อ"
+        </div>
+    </div>
+
+    <script>
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            animation: false, baseLayerPicker: false, geocoder: false,
+            homeButton: false, infoBox: false, sceneModePicker: false,
+            selectionIndicator: false, timeline: false, navigationHelpButton: false,
+            imageryProvider: new Cesium.ArcGisMapServerImageryProvider({
+                url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
+            }),
+            terrainProvider: Cesium.createWorldTerrain()
+        });
+
+        const targetLon = 98.985300;
+        const targetLat = 18.788300;
+        let isBreathingActive = false;
+        let timeTick = 0;
+
+        viewer.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(targetLon, targetLat, 1000),
+            orientation: { heading: Cesium.Math.toRadians(0.0), pitch: Cesium.Math.toRadians(-55.0), roll: 0.0 },
+            duration: 2.0
+        });
+
+        // WALL-E Event Interactive Handler
+        const wallePhrases = [
+            "🤖 วอลล์-อี! พร้อมลุยหน้างานครับ!",
+            "💎 คาถาเงินล้าน มหาลาโภ ภวันตุ เม!",
+            "🚜 ดินขุด ดินถม ลื่นหัวแตก 120 FPS!",
+            "✨ โยนิโสมนสิการ ปัญญาญาณสว่างไสว!"
+        ];
+        let phraseIndex = 0;
+
+        function triggerWalleEvent() {
+            phraseIndex = (phraseIndex + 1) % wallePhrases.length;
+            document.getElementById('walle-speech-bubble').innerText = wallePhrases[phraseIndex];
+            
+            // เอฟเฟกต์ดิ้นยุกยิกเมื่อถูกคลิก
+            const pet = document.getElementById('walle-pet-container');
+            pet.style.transform = "scale(1.25) rotate(10deg)";
+            setTimeout(() => { pet.style.transform = "scale(1) rotate(0deg)"; }, 200);
+
+            if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
+        }
+
+        // Sine Wave Breathing Listener
+        function toggleSineWaveBreathing() {
+            isBreathingActive = !isBreathingActive;
+            const btn = document.getElementById('breath-toggle-btn');
+            
+            if (isBreathingActive) {
+                btn.innerText = "⏹️ ปิดลมหายใจคลื่นทราย (Sine Wave Active)";
+                document.getElementById('breath-log-box').innerHTML = `
+                    <span style="color:var(--accent-green); font-weight:bold;">🌬️ SINE WAVE BREATHING ACTIVE:</span><br>
+                    • ลมหายใจเข้า-ออกขับเคลื่อนคลื่นทราย (Sand Wave) และ WALL-E ยุกยิก<br>
+                    • อัตราเรนเดอร์ลื่นหัวแตก 120 FPS ไหลลื่นไร้รอยต่อ
+                `;
+                viewer.clock.onTick.addEventListener(sineWaveBreathingListener);
+            } else {
+                btn.innerText = "🌬️ เปิด/ปิด ลมหายใจคลื่นทรายไซน์ซอยด์ (Sine Wave)";
+                document.getElementById('breath-log-box').innerHTML = `<span style="color:var(--text-sub);">พักลมหายใจ 3D สู่ความสงบ</span>`;
+                viewer.clock.onTick.removeEventListener(sineWaveBreathingListener);
+            }
+            if (navigator.vibrate) navigator.vibrate(50);
+        }
+
+        function sineWaveBreathingListener() {
+            if (isBreathingActive) {
+                timeTick += 0.03;
+                const altitudeOffset = 1000 + Math.sin(timeTick) * 150; 
+                const pitchOffset = -55 + Math.cos(timeTick * 0.5) * 5;
+
+                viewer.scene.camera.setView({
+                    destination: Cesium.Cartesian3.fromDegrees(targetLon, targetLat, altitudeOffset),
+                    orientation: {
+                        heading: viewer.scene.camera.heading,
+                        pitch: Cesium.Math.toRadians(pitchOffset),
+                        roll: 0.0
+                    }
+                });
+            }
+        }
+
+        function triggerMillionaireBlessing() {
+            document.getElementById('breath-log-box').innerHTML = `
+                <span style="color:var(--accent-gold); font-weight:bold;">✨ พระคาถาเงินล้าน & ลมหายใจมหาลาภ:</span><br>
+                • "พุทธะมะอะอุ นะโมพุทธายะ วิระทะโย... สวาโหม"<br>
+                • มหาลาโภ ภวันตุ เม สัมปะติฉามิ (เศรษฐีใหม่ป้ายแดง)
+            `;
+            triggerWalleEvent();
+            if (navigator.vibrate) navigator.vibrate([40, 60, 40, 60]);
+        }
+
+        document.getElementById('breath-toggle-btn').addEventListener('click', toggleSineWaveBreathing);
+        document.getElementById('blessing-btn').addEventListener('click', triggerMillionaireBlessing);
+    </script>
+</body>
+</html>
