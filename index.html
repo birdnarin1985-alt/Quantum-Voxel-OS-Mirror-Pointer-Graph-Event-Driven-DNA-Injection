@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>หจก. เชียงใหม่ 63 การช่าง - Dynamic Model Memory Injection (120 FPS)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@1.0.9/lib/three-vrm.js"></script>
+    <style>
+        :root {
+            --bg-color: #000000;
+            --glass-bg: rgba(13, 17, 23, 0.92);
+            --border-glow: rgba(0, 255, 102, 0.6);
+            --accent-green: #00ff66;
+            --accent-gold: #d29922;
+            --text-main: #f0f6fc;
+            --text-sub: #8b949e;
+            --font-ios: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+        }
+        body, html { width: 100%; height: 100%; margin: 0; padding: 0; background: var(--bg-color); font-family: var(--font-ios); overflow: hidden; }
+        #canvas3d { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+        
+        .hud-panel {
+            position: absolute;
+            top: 16px; left: 16px; right: 16px; max-width: 440px;
+            background: var(--glass-bg); backdrop-filter: blur(30px);
+            border: 1px solid var(--border-glow); border-radius: 24px; padding: 18px;
+            z-index: 1000; box-shadow: 0 20px 60px rgba(0, 255, 102, 0.35); color: var(--text-main); box-sizing: border-box;
+        }
+        h2 { margin: 0 0 2px 0; font-size: 17px; color: #fff; text-align: center; font-weight: 700; }
+        .os-subtitle { font-size: 11px; color: var(--accent-green); text-align: center; margin-bottom: 12px; font-weight: 600; }
+        
+        .form-group { margin-bottom: 10px; }
+        label { display: block; font-size: 11px; color: var(--text-sub); margin-bottom: 4px; font-weight: 500; }
+        select { width: 100%; padding: 10px 12px; background: rgba(1, 4, 9, 0.9); border: 1px solid rgba(48, 54, 61, 0.8); color: #fff; border-radius: 10px; font-size: 13px; outline: none; }
+        select:focus { border-color: var(--accent-green); }
+
+        .ios-btn { width: 100%; background: var(--accent-green); color: #000; border: none; padding: 12px; font-size: 14px; font-weight: 700; border-radius: 12px; cursor: pointer; margin-top: 6px; box-shadow: 0 4px 18px rgba(0,255,102,0.3); }
+        .ios-btn:active { transform: scale(0.96); opacity: 0.85; }
+        .ios-btn.gold { background: var(--accent-gold); color: #000; }
+        .event-screen { background: rgba(1, 4, 9, 0.95); border: 1px dashed var(--accent-green); padding: 12px; border-radius: 10px; font-size: 11px; margin-top: 10px; line-height: 1.5; }
+    </style>
+</head>
+<body>
+
+    <canvas id="canvas3d"></canvas>
+
+    <div class="hud-panel">
+        <h2>หจก. เชียงใหม่ 63 การช่าง</h2>
+        <div class="os-subtitle">DYNAMIC MODEL MEMORY INJECTION (120 FPS)</div>
+
+        <div class="form-group">
+            <label>เลือกโมเดล 3D (Runtime Memory Injection):</label>
+            <select id="model-selector" onchange="injectSelectedModel()">
+                <option value="https://cdn.jsdelivr.net/gh/pixiv/three-vrm@1.0.9/examples/models/VRM1_Constraint_Sample.vrm">🤖 หุ่นยนต์ไซไฟ VRM 1.0 (Default)</option>
+                <option value="https://cdn.jsdelivr.net/gh/pixiv/three-vrm@1.0.9/examples/models/three-vrm-girl.vrm">🌸 อบาตาร์สาวอนิเมะไซเบอร์ (Cyber Girl)</option>
+            </select>
+        </div>
+
+        <button class="ios-btn" onclick="triggerVroidSmile()">😊 สั่งยิ้ม & พับตา (Smile & Blink)</button>
+        <button class="ios-btn gold" onclick="triggerVroidTalk()">🗣️ จำลองการพูด (Lip-Sync Engine)</button>
+
+        <div id="vroid-log" class="event-screen">
+            <em>[ระบบพร้อมฉีดโมเดลเข้าหน่วยความจำแบบไดนามิก...]</em>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas3d');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x050505);
+
+        const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 20);
+        camera.position.set(0, 1.4, 3.0);
+
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.outputEncoding = THREE.sRGBEncoding;
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0x00ff66, 1.2);
+        directionalLight.position.set(1, 2, 2);
+        scene.add(directionalLight);
+
+        let currentVrm = null;
+        const loader = new THREE.GLTFLoader();
+
+        // ฟังก์ชันฉีดโมเดลเข้าหน่วยความจำแบบไดนามิก (Runtime Memory Injection)
+        function injectSelectedModel() {
+            const selectElem = document.getElementById('model-selector');
+            const modelUrl = selectElem.value;
+
+            document.getElementById('vroid-log').innerHTML = `🔄 <b>Memory Injection:</b> กำลังเคลียร์หน่วยความจำเก่า และฉีดโมเดลใหม่เข้าสู่ระบบ...`;
+
+            // ลบโมเดลเดิมออกจาก Scene และ Memory Pool
+            if (currentVrm) {
+                scene.remove(currentVrm.scene);
+                currentVrm.dispose();
+                currentVrm = null;
+            }
+
+            // โหลดโมเดลใหม่เข้าสู่หน่วยความจำ
+            loader.load(modelUrl, (gltf) => {
+                THREE.VRM.from(gltf).then((vrm) => {
+                    scene.add(vrm.scene);
+                    currentVrm = vrm;
+                    vrm.scene.rotation.y = Math.PI; // หันหน้าเข้าหากล้อง
+                    document.getElementById('vroid-log').innerHTML = `<span style="color:var(--accent-green); font-weight:bold;">✔ ฉีดโมเดลเข้าเมมโมรีสำเร็จ!</span> พร้อมใช้งาน 120 FPS`;
+                });
+            }, undefined, (error) => {
+                console.error(error);
+                document.getElementById('vroid-log').innerHTML = `<span style="color:#ff7b72;">❌ เกิดข้อผิดพลาดในการโหลดโมเดล</span>`;
+            });
+
+            if (navigator.vibrate) navigator.vibrate(50);
+        }
+
+        // Facial Expression Controllers
+        function triggerVroidSmile() {
+            if (!currentVrm || !currentVrm.expressionManager) return;
+            currentVrm.expressionManager.setValue('happy', 1.0);
+            currentVrm.expressionManager.setValue('blink', 1.0);
+            currentVrm.expressionManager.update();
+            document.getElementById('vroid-log').innerHTML = `😊 <b>VRoid Expression:</b> กำลังยิ้มและพับตากะพริบอย่างมีความสุข`;
+            if (navigator.vibrate) navigator.vibrate(40);
+            setTimeout(() => {
+                currentVrm.expressionManager.setValue('blink', 0.0);
+                currentVrm.expressionManager.update();
+            }, 500);
+        }
+
+        function triggerVroidTalk() {
+            if (!currentVrm || !currentVrm.expressionManager) return;
+            let talkCount = 0;
+            const talkInterval = setInterval(() => {
+                talkCount++;
+                const mouthVal = (talkCount % 2 === 0) ? 0.9 : 0.1;
+                currentVrm.expressionManager.setValue('aa', mouthVal);
+                currentVrm.expressionManager.update();
+                if (talkCount > 6) {
+                    clearInterval(talkInterval);
+                    currentVrm.expressionManager.setValue('aa', 0.0);
+                    currentVrm.expressionManager.update();
+                }
+            }, 150);
+            document.getElementById('vroid-log').innerHTML = `🗣️ <b>VRoid Lip-Sync:</b> ขยับปากพูดคาถาเงินล้าน มหาลาโภ ภวันตุ เม!`;
+            if (navigator.vibrate) navigator.vibrate([30, 30, 30]);
+        }
+
+        // Animation Loop (120 FPS)
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            if (currentVrm) {
+                currentVrm.update(delta);
+                currentVrm.scene.position.y = Math.sin(clock.getElapsedTime() * 3) * 0.03;
+            }
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // โหลดโมเดลแรกเริ่มตอนเปิดหน้าเว็บ
+        window.onload = function() {
+            injectSelectedModel();
+        };
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
